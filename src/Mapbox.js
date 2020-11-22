@@ -79,7 +79,7 @@ function Mapbox() {
   }, [selectedCountry, features, map]);
 
   useEffect(() => {
-    fetch("http://localhost:3000/data/flightlist.geojson")
+    fetch("/data/flightlist.geojson")
       .then((res) => res.json())
       .then((response) => {
         setFeatures(response.features);
