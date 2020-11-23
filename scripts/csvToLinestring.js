@@ -57,8 +57,6 @@ function generate() {
       if (isValid(data) && !counter[uniqueKey]) {
         counter[uniqueKey] = true;
         const originCoordinates = [data["longitude_1"], data["latitude_1"]];
-        const origin = data["origin"];
-        const destination = data["destination"];
         const countryISOCode = airportCodes[data["destination"]].country;
         const country = countryCodes[countryISOCode];
         const airport = airportCodes[data["destination"]].airport;
@@ -83,8 +81,6 @@ function generate() {
         const feature = {
           type: "Feature",
           properties: {
-            origin,
-            destination,
             airline,
             airport,
             country,
