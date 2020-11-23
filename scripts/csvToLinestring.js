@@ -1,14 +1,11 @@
 const fs = require("fs");
 const csv = require("csv-parser");
-const turf = require("@turf/turf");
 const airportCodes = require("../public/data/airportCodes.json");
 const airlineInfo = require("../public/data/airlineInfo.json");
 const countryCodes = require("../public/data/countryCodes.json");
 const ICAO = {
   INCHEON: "RKSI",
 };
-
-const STEPS = 900; // Number of steps to use in the arc, more steps means a smoother arc
 
 /**
  * callsign: the identifier of the flight displayed on ATC screens (usually the first three letters are reserved for an airline: AFR for Air France, DLH for Lufthansa, etc.)
@@ -41,6 +38,14 @@ function isValid(data) {
     data["destination"] &&
     airportCodes[data["destination"]].country !== "KR"
   );
+}
+
+function roundCoordinates(lngLat) {
+  return lngLat.map((coordinate) => roundDecimal(coordinate));
+}
+
+function roundDecimal(coordinate, decimalPlace = 4) {
+  return parseFloat(coordinate).toFixed(decimalPlace);
 }
 
 function generate() {
@@ -86,23 +91,12 @@ function generate() {
           },
           geometry: {
             type: "LineString",
-            coordinates: [originCoordinates, destinationCoordinates],
+            coordinates: [
+              roundCoordinates(originCoordinates),
+              roundCoordinates(destinationCoordinates),
+            ],
           },
         };
-
-        const lineDistance = turf.length(feature, {
-          units: "kilometers",
-        });
-
-        let arc = [];
-        for (let i = 0; i < lineDistance; i += lineDistance / STEPS) {
-          const segment = turf.along(feature, i, {
-            units: "kilometers",
-          });
-          arc.push(segment.geometry.coordinates);
-        }
-
-        feature.geometry.coordinates = arc;
 
         results.features.push(feature);
       }
