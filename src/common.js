@@ -14,3 +14,11 @@ const CARGO_LIST = [
 export const isCargo = (airline) => {
   return airline.includes("CARGO") || CARGO_LIST.includes(airline);
 };
+
+export function roundCoordinates(lngLat) {
+  return lngLat.map((coordinate) => roundDecimal(coordinate));
+}
+
+function roundDecimal(coordinate, decimalPlace = 4) {
+  return parseFloat(coordinate).toFixed(decimalPlace);
+}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import * as turf from "@turf/turf";
-import { isCargo } from "./common";
+import { isCargo, roundCoordinates } from "./common";
 
 mapboxgl.accessToken = process.env.REACT_APP_MAPBOXGL_ACCESS_TOKEN;
 
@@ -37,50 +37,6 @@ function Mapbox() {
   const [countryToAirlineMapper, setCountryToAirlineMapper] = useState({});
   const [selectedCountry, setSelectedCountry] = useState("");
   const [searchWord, setSearchWord] = useState("");
-
-  useEffect(() => {
-    if (geojson.features && geojson.features.length > 0) {
-      const features = geojson.features;
-      const uniqueFeatures = getUniqueFeatures(features, "country");
-      setCountries(renderListings(uniqueFeatures, "country"));
-
-      let countryToAirlineMapper = {};
-      features.forEach((feature) => {
-        const country = feature.properties.country;
-        const airline = feature.properties.airline;
-        if (countryToAirlineMapper[country]) {
-          if (!countryToAirlineMapper[country].includes(airline)) {
-            countryToAirlineMapper[country].push(airline);
-          }
-        } else {
-          countryToAirlineMapper[country] = [airline];
-        }
-      });
-      setCountryToAirlineMapper(countryToAirlineMapper);
-    }
-  }, [geojson]);
-
-  useEffect(() => {
-    if (selectedCountry) {
-      const feature = geojson.features.find((feature) => {
-        return feature.properties.country === selectedCountry;
-      });
-
-      let centerLngLat =
-        feature.geometry.coordinates[feature.geometry.coordinates.length - 1];
-      if (selectedCountry === "United States") {
-        centerLngLat = [-97.22281391988629, 41.39781435396793];
-      }
-
-      map.flyTo({
-        center: centerLngLat,
-        zoom: 4,
-        speed: 0.9, // make the flying slow
-        essential: true,
-      });
-      // https://docs.mapbox.com/mapbox-gl-js/api/map/#map#flyto
-    }
-  }, [selectedCountry, geojson, map]);
 
   useEffect(() => {
     fetch(FLIGHTLIST_GEOJSON)
@@ -158,8 +114,52 @@ function Mapbox() {
     };
   }, []);
 
+  useEffect(() => {
+    if (geojson.features && geojson.features.length > 0) {
+      const features = geojson.features;
+      const uniqueFeatures = getUniqueFeatures(features, "country");
+      setCountries(renderListings(uniqueFeatures, "country"));
+
+      let countryToAirlineMapper = {};
+      features.forEach((feature) => {
+        const country = feature.properties.country;
+        const airline = feature.properties.airline;
+        if (countryToAirlineMapper[country]) {
+          if (!countryToAirlineMapper[country].includes(airline)) {
+            countryToAirlineMapper[country].push(airline);
+          }
+        } else {
+          countryToAirlineMapper[country] = [airline];
+        }
+      });
+      setCountryToAirlineMapper(countryToAirlineMapper);
+    }
+  }, [geojson]);
+
+  useEffect(() => {
+    if (selectedCountry) {
+      const feature = geojson.features.find((feature) => {
+        return feature.properties.country === selectedCountry;
+      });
+
+      let centerLngLat =
+        feature.geometry.coordinates[feature.geometry.coordinates.length - 1];
+      if (selectedCountry === "United States") {
+        centerLngLat = [-97.22281391988629, 41.39781435396793];
+      }
+
+      map.flyTo({
+        center: centerLngLat,
+        zoom: 4,
+        speed: 0.9, // make the flying slow
+        essential: true,
+      });
+      // https://docs.mapbox.com/mapbox-gl-js/api/map/#map#flyto
+    }
+  }, [selectedCountry, geojson, map]);
+
   function makeArc(geojson) {
-    const STEPS = 30; // Number of steps to use in the arc, more steps means a smoother arc
+    const STEPS = 50; // Number of steps to use in the arc, more steps means a smoother arc
 
     return geojson.features.map((feature) => {
       const lineDistance = turf.length(feature, {
@@ -171,11 +171,11 @@ function Mapbox() {
         const segment = turf.along(feature, i, {
           units: "kilometers",
         });
-        arc.push(segment.geometry.coordinates);
+
+        arc.push(roundCoordinates(segment.geometry.coordinates));
       }
 
       feature.geometry.coordinates = arc;
-
       return feature;
     });
   }
