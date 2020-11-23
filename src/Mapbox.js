@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
 import mapboxgl from "mapbox-gl";
+import * as turf from "@turf/turf";
 import { isCargo } from "./common";
 
 mapboxgl.accessToken = process.env.REACT_APP_MAPBOXGL_ACCESS_TOKEN;
 
+const FLIGHTLIST_GEOJSON = "/data/flightlist.geojson";
 const MAP_PROPERTY = {
   lng: 126.7052,
   lat: 37.4563,
   zoom: 1,
 };
+
 function getUniqueFeatures(array, comparatorProperty) {
   const existingFeatureKeys = {};
   // Because features come from tiled vector data, feature geometries may be split
@@ -29,14 +32,15 @@ function getUniqueFeatures(array, comparatorProperty) {
 function Mapbox() {
   const mapContainer = useRef();
   const [map, setMap] = useState(null);
-  const [features, setFeatures] = useState([]);
+  const [geojson, setGeojson] = useState({});
   const [countries, setCountries] = useState([]);
   const [countryToAirlineMapper, setCountryToAirlineMapper] = useState({});
   const [selectedCountry, setSelectedCountry] = useState("");
   const [searchWord, setSearchWord] = useState("");
 
   useEffect(() => {
-    if (features.length > 0) {
+    if (geojson.features && geojson.features.length > 0) {
+      const features = geojson.features;
       const uniqueFeatures = getUniqueFeatures(features, "country");
       setCountries(renderListings(uniqueFeatures, "country"));
 
@@ -54,11 +58,11 @@ function Mapbox() {
       });
       setCountryToAirlineMapper(countryToAirlineMapper);
     }
-  }, [features]);
+  }, [geojson]);
 
   useEffect(() => {
     if (selectedCountry) {
-      const feature = features.find((feature) => {
+      const feature = geojson.features.find((feature) => {
         return feature.properties.country === selectedCountry;
       });
 
@@ -76,13 +80,16 @@ function Mapbox() {
       });
       // https://docs.mapbox.com/mapbox-gl-js/api/map/#map#flyto
     }
-  }, [selectedCountry, features, map]);
+  }, [selectedCountry, geojson, map]);
 
   useEffect(() => {
-    fetch("/data/flightlist.geojson")
+    fetch(FLIGHTLIST_GEOJSON)
       .then((res) => res.json())
       .then((response) => {
-        setFeatures(response.features);
+        makeArc(response);
+        setGeojson(response);
+        loadMap(map, response);
+        setMap(map);
       })
       .catch((error) => console.log(error));
 
@@ -97,6 +104,14 @@ function Mapbox() {
     map.addControl(new mapboxgl.NavigationControl(), "top-left");
     const popup = new mapboxgl.Popup({
       closeButton: false,
+    });
+
+    map.on("mouseenter", "routeLayer", onMouseEnterLayer);
+
+    map.on("mouseleave", "routeLayer", onMouseLeaveLayer);
+
+    map.on("click", function (e) {
+      console.log(e.lngLat);
     });
 
     function onMouseEnterLayer(e) {
@@ -138,10 +153,38 @@ function Mapbox() {
       popup.remove();
     }
 
+    return () => {
+      map.remove();
+    };
+  }, []);
+
+  function makeArc(geojson) {
+    const STEPS = 30; // Number of steps to use in the arc, more steps means a smoother arc
+
+    return geojson.features.map((feature) => {
+      const lineDistance = turf.length(feature, {
+        units: "kilometers",
+      });
+
+      let arc = [];
+      for (let i = 0; i < lineDistance; i += lineDistance / STEPS) {
+        const segment = turf.along(feature, i, {
+          units: "kilometers",
+        });
+        arc.push(segment.geometry.coordinates);
+      }
+
+      feature.geometry.coordinates = arc;
+
+      return feature;
+    });
+  }
+
+  function loadMap(map, geojson) {
     map.on("load", function () {
       map.addSource("routeSource", {
         type: "geojson",
-        data: "./data/flightlist.geojson",
+        data: geojson,
         lineMetrics: true,
       });
 
@@ -169,22 +212,8 @@ function Mapbox() {
         },
         filter: ["in", "country", ""],
       });
-
-      setMap(map);
     });
-
-    map.on("mouseenter", "routeLayer", onMouseEnterLayer);
-
-    map.on("mouseleave", "routeLayer", onMouseLeaveLayer);
-
-    map.on("click", function (e) {
-      console.log(e.lngLat);
-    });
-
-    return () => {
-      map.remove();
-    };
-  }, []);
+  }
 
   function renderListings(features, property) {
     return features.map((item) => {
